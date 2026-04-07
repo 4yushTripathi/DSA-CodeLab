@@ -42,7 +42,7 @@ README.md    # Project documentation
 1. Clone the repo:
 
 ```
-git clone https://github.com/YOUR_USERNAME/dsa-codelab.git
+git clone https://github.com/4yushTripathi/dsa-codelab.git
 ```
 
 2. Open:
