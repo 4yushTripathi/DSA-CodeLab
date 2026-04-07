@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSA CodeLab — Live C Compiler</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161d;
+    --card: #191d27;
+    --border: #252a38;
+    --accent: #00e5a0;
+    --accent2: #7c6fff;
+    --text: #e2e8f0;
+    --muted: #7a869a;
+    --keyword: #ff7b72;
+    --type: #79c0ff;
+    --string: #a5d6ff;
+    --comment: #5c6773;
+    --number: #f2cc60;
+    --func: #d2a8ff;
+    --error: #ff7b72;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== TOP NAV ===== */
+  .top-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #0a0c10;
+    border-bottom: 1px solid var(--border);
+    height: 46px;
+    padding: 0 16px;
+  }
+  .nav-logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-right: 24px;
+    white-space: nowrap;
+  }
+  .nav-tabs { display: flex; height: 100%; gap: 0; flex: 1; overflow: hidden; }
+  .nav-tab {
+    display: flex; align-items: center; gap: 7px;
+    padding: 0 16px; height: 100%;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    color: var(--muted); border-right: 1px solid var(--border);
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.15s, color 0.15s; position: relative;
+  }
+  .nav-tab.active { background: #191d27; color: #fff; }
+  .nav-tab.active::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px; background: var(--accent);
+  }
+  .nav-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+  .nav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+  .run-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #0d0f14;
+    border: none; border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700;
+    padding: 7px 16px; cursor: pointer; letter-spacing: 1px; transition: opacity 0.2s;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .clear-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 4px; padding: 5px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .clear-btn:hover { border-color: var(--error); color: var(--error); }
+
+  /* ===== MAIN IDE LAYOUT ===== */
+  .ide-wrap {
+    display: flex;
+    height: calc(100vh - 46px - 28px);
+    position: relative; z-index: 1;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 210px; flex-shrink: 0;
+    background: #0e1017;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sb-section { padding: 10px 0 4px; }
+  .sb-heading {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.58rem;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); padding: 0 14px 6px;
+  }
+  .sb-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+    color: var(--muted); cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .sb-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .sb-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,160,0.05); }
+  .sb-icon { font-size: 10px; opacity: 0.6; flex-shrink: 0; }
+  .sb-badge {
+    margin-left: auto; font-size: 0.58rem; padding: 1px 6px;
+    border-radius: 3px; background: rgba(124,111,255,0.15);
+    color: var(--accent2); border: 1px solid rgba(124,111,255,0.2);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .sb-divider { height: 1px; background: var(--border); margin: 6px 14px; }
+
+  /* Editor area */
+  .editor-area {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+  }
+  .editor-pane {
+    flex: 1; display: flex; overflow: hidden; min-height: 0;
+  }
+
+  /* Line numbers */
+  .line-nums {
+    background: #0e1017; border-right: 1px solid var(--border);
+    padding: 16px 0; min-width: 46px; text-align: right;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    line-height: 1.65; color: #3a4050; user-select: none;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .line-nums span { display: block; padding-right: 12px; }
+
+  /* Code textarea */
+  .code-editor {
+    flex: 1; background: #0d0f14; overflow: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    line-height: 1.65; color: #c9d1d9;
+    border: none; outline: none; resize: none;
+    padding: 16px 20px; tab-size: 4;
+    white-space: pre; word-wrap: normal;
+    caret-color: var(--accent);
+  }
+  .code-editor::-webkit-scrollbar { width: 6px; height: 6px; }
+  .code-editor::-webkit-scrollbar-track { background: transparent; }
+  .code-editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Output panel */
+  .output-panel {
+    height: 200px; border-top: 1px solid var(--border);
+    background: #090b0f; display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .output-tabs {
+    display: flex; align-items: center; gap: 0;
+    background: #0e1017; border-bottom: 1px solid var(--border);
+    height: 32px; padding: 0 8px; flex-shrink: 0;
+  }
+  .output-tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 14px; height: 100%;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+    color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .output-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .out-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; }
+  .out-dot.err { background: var(--error); }
+
+  .output-body {
+    flex: 1; overflow-y: auto; padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; line-height: 1.7;
+  }
+  .output-body::-webkit-scrollbar { width: 4px; }
+  .output-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .out-line { display: flex; gap: 10px; margin-bottom: 2px; }
+  .out-prompt { color: var(--accent); opacity: 0.5; user-select: none; }
+  .out-text { color: #c9d1d9; white-space: pre-wrap; }
+  .out-success { color: var(--accent); }
+  .out-error { color: var(--error); }
+  .out-info { color: var(--accent2); }
+  .out-warn { color: var(--number); }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block; width: 9px; height: 9px;
+    border: 1.5px solid rgba(13,15,20,0.3); border-top-color: #0d0f14;
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Status bar */
+  .statusbar {
+    height: 28px; background: var(--accent);
+    display: flex; align-items: center;
+    padding: 0 14px; gap: 20px; flex-shrink: 0;
+    position: relative; z-index: 1;
+  }
+  .status-item {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    color: #0d0f14; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap;
+  }
+  .status-sep { color: rgba(0,0,0,0.3); }
+
+  /* ===== PLAYGROUND SECTION ===== */
+  .playground-banner {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    background: linear-gradient(90deg, rgba(0,229,160,0.08), rgba(124,111,255,0.08));
+    border-top: 1px solid rgba(0,229,160,0.15);
+    border-bottom: 1px solid var(--border);
+  }
+  .playground-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  /* ===== SCROLL HINT ===== */
+  .scroll-hint {
+    position: relative; z-index: 1; text-align: center;
+    padding: 18px 0 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .scroll-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--muted);
+  }
+  .view-blog-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 28px;
+    background: none; border: 1px solid rgba(0,229,160,0.35);
+    border-radius: 6px; color: var(--accent);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    letter-spacing: 1.5px; cursor: pointer; transition: all 0.2s;
+  }
+  .view-blog-btn:hover { background: rgba(0,229,160,0.08); border-color: var(--accent); }
+
+  .section-divider { height: 1px; background: var(--border); position: relative; z-index: 1; margin-top: 8px; }
+
+  /* ===== BLOG SECTION ===== */
+  .hero {
+    position: relative; z-index: 1; text-align: center;
+    padding: 70px 20px 50px; border-bottom: 1px solid var(--border);
+  }
+  .hero-tag {
+    display: inline-block;
+    background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3);
+    color: var(--accent); font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; padding: 6px 16px; border-radius: 2px; margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 800;
+    line-height: 1.05; letter-spacing: -1px; color: #fff;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    margin-top: 16px; color: var(--muted); font-size: 1rem;
+    max-width: 520px; margin-inline: auto; line-height: 1.6;
+  }
+  .stats { display: flex; gap: 40px; justify-content: center; margin-top: 36px; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .stat-label { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+
+  /* TOC */
+  .toc-wrap { position: relative; z-index: 1; max-width: 900px; margin: 46px auto; padding: 0 24px; }
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 26px 30px; }
+  .toc h2 { font-size: 0.68rem; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 20px; }
+  .toc-item {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    text-decoration: none; color: var(--muted); font-size: 0.82rem;
+    transition: color 0.2s; border-bottom: 1px solid transparent;
+  }
+  .toc-item:hover { color: var(--accent); }
+  .toc-num { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--accent2); min-width: 24px; }
+
+  /* Blog container */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px 80px; position: relative; z-index: 1; }
+
+  /* Program cards in blog */
+  .program-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 36px; overflow: hidden;
+    transition: border-color 0.3s; scroll-margin-top: 20px;
+  }
+  .program-card:hover { border-color: rgba(0,229,160,0.25); }
+  .card-header {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 20px 24px 18px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .card-num {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+    color: var(--accent); background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.25); padding: 4px 10px;
+    border-radius: 4px; white-space: nowrap; margin-top: 2px;
+  }
+  .card-title { font-size: 1rem; font-weight: 600; color: #fff; line-height: 1.4; }
+  .card-tag {
+    margin-left: auto; font-size: 0.65rem; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--accent2);
+    background: rgba(124,111,255,0.1); border: 1px solid rgba(124,111,255,0.25);
+    padding: 3px 10px; border-radius: 4px; white-space: nowrap;
+  }
+
+  /* Blog code blocks */
+  .blog-code-wrap { position: relative; }
+  .blog-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 18px; background: #0d0f14; border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #ffbd2e; } .dot-g { background: #28c840; }
+  .lang-tag { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; }
+
+  .blog-copy-btn, .blog-run-btn, .blog-edit-btn {
+    border-radius: 4px; cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    padding: 3px 10px; transition: all 0.2s; margin-left: 4px;
+  }
+  .blog-copy-btn { background: none; border: 1px solid var(--border); color: var(--muted); }
+  .blog-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .blog-edit-btn { background: none; border: 1px solid rgba(124,111,255,0.4); color: var(--accent2); }
+  .blog-edit-btn:hover { background: rgba(124,111,255,0.1); }
+  .blog-run-btn { background: var(--accent); color: #0d0f14; border: none; font-weight: 700; }
+  .blog-run-btn:hover { opacity: 0.85; }
+  .blog-run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Blog pre / editable textarea */
+  .blog-pre, .blog-textarea {
+    margin: 0; padding: 20px 22px; overflow-x: auto;
+    background: #0d0f14;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.76rem;
+    line-height: 1.72; color: #c9d1d9;
+  }
+  .blog-textarea {
+    display: none; width: 100%; border: none; outline: none; resize: vertical;
+    min-height: 120px; tab-size: 4; white-space: pre; word-wrap: normal;
+    caret-color: var(--accent);
+  }
+  .blog-textarea::-webkit-scrollbar { width: 4px; }
+  .blog-textarea::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Blog output */
+  .blog-output {
+    display: none; border-top: 1px solid var(--border);
+    background: #090b0f;
+  }
+  .blog-output-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 18px; background: #0e1017; border-bottom: 1px solid var(--border);
+  }
+  .blog-output-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    color: var(--accent); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .blog-output-close {
+    background: none; border: none; color: var(--muted);
+    font-size: 0.9rem; cursor: pointer; padding: 0 4px;
+  }
+  .blog-output-close:hover { color: var(--error); }
+  .blog-output-body {
+    padding: 10px 18px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; line-height: 1.7; max-height: 180px; overflow-y: auto;
+  }
+  .blog-output-body::-webkit-scrollbar { width: 4px; }
+  .blog-output-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Syntax highlight classes */
+  .kw  { color: var(--keyword); }
+  .ty  { color: var(--type); }
+  .fn  { color: var(--func); }
+  .cm  { color: var(--comment); font-style: italic; }
+  .st  { color: var(--string); }
+  .nm  { color: var(--number); }
+  .pp  { color: #ff9e64; }
+
+  /* Footer */
+  footer {
+    text-align: center; padding: 28px;
+    color: var(--muted); font-size: 0.75rem; letter-spacing: 1px;
+    border-top: 1px solid var(--border); position: relative; z-index: 1;
+  }
+
+  /* Scrollbar global */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- =====================================================
+     TOP NAV
+     ===================================================== -->
+<div class="top-nav">
+  <div class="nav-logo">&#9654; DSA CODELAB</div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" id="tab-active">
+      <span class="nav-tab-dot"></span>
+      <span id="tab-name">playground.c</span>
+    </div>
+  </div>
+  <div class="nav-actions">
+    <button class="clear-btn" onclick="clearOutput()">Clear</button>
+    <button class="run-btn" id="main-run-btn" onclick="runMainCode()">
+      <span id="run-icon">&#9654;</span>
+      <span id="run-label">RUN</span>
+    </button>
+  </div>
+</div>
+
+<!-- =====================================================
+     IDE (Sidebar + Editor + Output)
+     ===================================================== -->
+<div class="ide-wrap">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-section">
+      <div class="sb-heading">&#128194; Playground</div>
+      <div class="sb-item active" id="sb-playground" onclick="loadPlayground()">
+        <span class="sb-icon">&#9654;</span> Custom C Code
+        <span class="sb-badge">FREE</span>
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-heading">&#128196; DSA Programs</div>
+      <div class="sb-item" onclick="loadProgram(0)"><span class="sb-icon">C</span> merge_sort.c</div>
+      <div class="sb-item" onclick="loadProgram(1)"><span class="sb-icon">C</span> quick_sort.c</div>
+      <div class="sb-item" onclick="loadProgram(2)"><span class="sb-icon">C</span> stack_array.c</div>
+      <div class="sb-item" onclick="loadProgram(3)"><span class="sb-icon">C</span> stack_ll.c</div>
+      <div class="sb-item" onclick="loadProgram(4)"><span class="sb-icon">C</span> queue_array.c</div>
+      <div class="sb-item" onclick="loadProgram(5)"><span class="sb-icon">C</span> queue_ll.c</div>
+      <div class="sb-item" onclick="loadProgram(6)"><span class="sb-icon">C</span> singly_ll.c</div>
+      <div class="sb-item" onclick="loadProgram(7)"><span class="sb-icon">C</span> doubly_ll.c</div>
+      <div class="sb-item" onclick="loadProgram(8)"><span class="sb-icon">C</span> circular_ll.c</div>
+      <div class="sb-item" onclick="loadProgram(9)"><span class="sb-icon">C</span> binary_tree.c</div>
+      <div class="sb-item" onclick="loadProgram(10)"><span class="sb-icon">C</span> bst.c</div>
+      <div class="sb-item" onclick="loadProgram(11)"><span class="sb-icon">C</span> avl_tree.c</div>
+      <div class="sb-item" onclick="loadProgram(12)"><span class="sb-icon">C</span> hash_table.c</div>
+      <div class="sb-item" onclick="loadProgram(13)"><span class="sb-icon">C</span> dijkstra.c</div>
+      <div class="sb-item" onclick="loadProgram(14)"><span class="sb-icon">C</span> dfs.c</div>
+      <div class="sb-item" onclick="loadProgram(15)"><span class="sb-icon">C</span> bfs.c</div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-heading">&#9881; Info</div>
+      <div class="sb-item"><span class="sb-icon">&#9670;</span> C (GCC 12.2)</div>
+      <div class="sb-item"><span class="sb-icon">&#127760;</span> Judge0 API</div>
+    </div>
+  </div>
+
+  <!-- Editor + Output -->
+  <div class="editor-area">
+    <div class="editor-pane">
+      <div class="line-nums" id="line-nums"></div>
+      <textarea
+        class="code-editor"
+        id="main-editor"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        onkeydown="handleTab(event)"
+        oninput="updateLineNums(); updateStatusBar()"
+      ></textarea>
+    </div>
+
+    <!-- Output panel -->
+    <div class="output-panel">
+      <div class="output-tabs">
+        <div class="output-tab active">Terminal <span class="out-dot" id="main-out-dot"></span></div>
+        <div class="output-tab" style="color:var(--muted)">Problems</div>
+      </div>
+      <div class="output-body" id="main-output">
+        <div class="out-line"><span class="out-prompt">$</span><span class="out-info">&nbsp;Select a program from the sidebar, or write your own code and press RUN ▶</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div class="statusbar">
+  <span class="status-item">&#10003; GCC 12.2</span>
+  <span class="status-sep">|</span>
+  <span class="status-item" id="status-file">playground.c</span>
+  <span class="status-sep">|</span>
+  <span class="status-item" id="status-lines">Lines: 1</span>
+  <span class="status-sep">|</span>
+  <span class="status-item">UTF-8</span>
+  <span class="status-sep">|</span>
+  <span class="status-item" id="status-msg">Ready — powered by Judge0</span>
+  <span class="status-sep" style="margin-left:auto">|</span>
+  <span class="status-item">DSA CodeLab</span>
+</div>
+
+<!-- Scroll hint -->
+<div class="scroll-hint">
+  <span class="scroll-label">Scroll down for all 16 programs with inline run</span>
+  <button class="view-blog-btn" onclick="document.getElementById('blog-start').scrollIntoView({behavior:'smooth'})">
+    View All 16 Programs &#8595;
+  </button>
+</div>
+<div class="section-divider"></div>
+<div id="blog-start"></div>
+
+<!-- =====================================================
+     BLOG SECTION
+     ===================================================== -->
+<div class="hero">
+  <div class="hero-tag">DSA Practical Exam</div>
+  <h1>Data Structures &amp;<br><span>Algorithms</span> in C</h1>
+  <p>All 16 practical programs — fully editable &amp; runnable right here in the browser.</p>
+  <div class="stats">
+    <div class="stat"><div class="stat-num">16</div><div class="stat-label">Programs</div></div>
+    <div class="stat"><div class="stat-num">C</div><div class="stat-label">Language</div></div>
+    <div class="stat"><div class="stat-num">&#9654;</div><div class="stat-label">Live Run</div></div>
+    <div class="stat"><div class="stat-num">6</div><div class="stat-label">Topics</div></div>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc-wrap">
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <div class="toc-grid">
+      <a href="#p1" class="toc-item"><span class="toc-num">01</span> Merge Sort</a>
+      <a href="#p2" class="toc-item"><span class="toc-num">02</span> Quick Sort</a>
+      <a href="#p3" class="toc-item"><span class="toc-num">03</span> Stack using Array</a>
+      <a href="#p4" class="toc-item"><span class="toc-num">04</span> Stack using Linked List</a>
+      <a href="#p5" class="toc-item"><span class="toc-num">05</span> Queue using Array</a>
+      <a href="#p6" class="toc-item"><span class="toc-num">06</span> Queue using Linked List</a>
+      <a href="#p7" class="toc-item"><span class="toc-num">07</span> Singly Linked List</a>
+      <a href="#p8" class="toc-item"><span class="toc-num">08</span> Doubly Linked List</a>
+      <a href="#p9" class="toc-item"><span class="toc-num">09</span> Circular Linked List</a>
+      <a href="#p10" class="toc-item"><span class="toc-num">10</span> Binary Tree Traversals</a>
+      <a href="#p11" class="toc-item"><span class="toc-num">11</span> Binary Search Tree</a>
+      <a href="#p12" class="toc-item"><span class="toc-num">12</span> AVL Tree</a>
+      <a href="#p13" class="toc-item"><span class="toc-num">13</span> Hash Table</a>
+      <a href="#p14" class="toc-item"><span class="toc-num">14</span> Dijkstra's Algorithm</a>
+      <a href="#p15" class="toc-item"><span class="toc-num">15</span> Depth First Search</a>
+      <a href="#p16" class="toc-item"><span class="toc-num">16</span> Breadth First Search</a>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="programs-container">
+  <!-- Cards injected by JS -->
+</div>
+
+<footer>DSA CodeLab &mdash; All 16 Programs in C &mdash; Powered by Judge0 API &mdash; 2024</footer>
+
+<!-- =====================================================
+     JAVASCRIPT
+     ===================================================== -->
+<script>
+// ── All 16 programs ──────────────────────────────────────────────────────────
+const PROGRAMS = [
+  {
+    file: "merge_sort.c", title: "Write a program to implement Merge Sort", tag: "Sorting",
+    code: `#include <stdio.h>
+
+void merge(int arr[], int left, int mid, int right) {
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+    int L[n1], R[n2];
+
+    for (int i = 0; i < n1; i++) L[i] = arr[left + i];
+    for (int j = 0; j < n2; j++) R[j] = arr[mid + 1 + j];
+
+    int i = 0, j = 0, k = left;
+    while (i < n1 && j < n2) {
+        if (L[i] <= R[j]) arr[k++] = L[i++];
+        else              arr[k++] = R[j++];
+    }
+    while (i < n1) arr[k++] = L[i++];
+    while (j < n2) arr[k++] = R[j++];
+}
+
+void mergeSort(int arr[], int left, int right) {
+    if (left < right) {
+        int mid = left + (right - left) / 2;
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+
+int main() {
+    int arr[] = {38, 27, 43, 3, 9, 82, 10};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    mergeSort(arr, 0, n - 1);
+    printf("Sorted: ");
+    for (int i = 0; i < n; i++) printf("%d ", arr[i]);
+    printf("\\n");
+    return 0;
+}`
+  },
+  {
+    file: "quick_sort.c", title: "Write a program to implement Quick Sort", tag: "Sorting",
+    code: `#include <stdio.h>
+
+void swap(int *a, int *b) { int t = *a; *a = *b; *b = t; }
+
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high], i = low - 1;
+    for (int j = low; j < high; j++)
+        if (arr[j] <= pivot) swap(&arr[++i], &arr[j]);
+    swap(&arr[i + 1], &arr[high]);
+    return i + 1;
+}
+
+void quickSort(int arr[], int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+
+int main() {
+    int arr[] = {64, 34, 25, 12, 22, 11, 90};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    quickSort(arr, 0, n - 1);
+    printf("Sorted: ");
+    for (int i = 0; i < n; i++) printf("%d ", arr[i]);
+    printf("\\n");
+    return 0;
+}`
+  },
+  {
+    file: "stack_array.c", title: "Write a program to implement Stack using Array (push & pop)", tag: "Stack",
+    code: `#include <stdio.h>
+#define MAX 100
+
+int stack[MAX], top = -1;
+
+void push(int val) {
+    if (top == MAX - 1) { printf("Stack Overflow\\n"); return; }
+    stack[++top] = val;
+    printf("%d pushed\\n", val);
+}
+
+void pop() {
+    if (top == -1) { printf("Stack Underflow\\n"); return; }
+    printf("%d popped\\n", stack[top--]);
+}
+
+void display() {
+    if (top == -1) { printf("Stack is empty\\n"); return; }
+    printf("Stack: ");
+    for (int i = 0; i <= top; i++) printf("%d ", stack[i]);
+    printf("\\n");
+}
+
+int main() {
+    push(10); push(20); push(30);
+    display();
+    pop();
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "stack_ll.c", title: "Write a program to implement Stack using Linked List (push & pop)", tag: "Stack",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *next; };
+struct Node *top = NULL;
+
+void push(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->next = top; top = n;
+    printf("%d pushed\\n", val);
+}
+
+void pop() {
+    if (!top) { printf("Stack Underflow\\n"); return; }
+    struct Node *t = top;
+    printf("%d popped\\n", t->data);
+    top = top->next; free(t);
+}
+
+void display() {
+    struct Node *cur = top;
+    printf("Stack (top->bottom): ");
+    while (cur) { printf("%d ", cur->data); cur = cur->next; }
+    printf("\\n");
+}
+
+int main() {
+    push(10); push(20); push(30);
+    display();
+    pop();
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "queue_array.c", title: "Write a program to implement Queue using Array (enqueue & dequeue)", tag: "Queue",
+    code: `#include <stdio.h>
+#define MAX 100
+
+int queue[MAX], front = -1, rear = -1;
+
+void enqueue(int val) {
+    if (rear == MAX - 1) { printf("Queue Full\\n"); return; }
+    if (front == -1) front = 0;
+    queue[++rear] = val;
+    printf("%d enqueued\\n", val);
+}
+
+void dequeue() {
+    if (front == -1 || front > rear) { printf("Queue Empty\\n"); return; }
+    printf("%d dequeued\\n", queue[front++]);
+}
+
+void display() {
+    if (front == -1 || front > rear) { printf("Queue Empty\\n"); return; }
+    printf("Queue: ");
+    for (int i = front; i <= rear; i++) printf("%d ", queue[i]);
+    printf("\\n");
+}
+
+int main() {
+    enqueue(10); enqueue(20); enqueue(30);
+    display();
+    dequeue();
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "queue_ll.c", title: "Write a program to implement Queue using Linked List (enqueue & dequeue)", tag: "Queue",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *next; };
+struct Node *front = NULL, *rear = NULL;
+
+void enqueue(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->next = NULL;
+    if (!rear) { front = rear = n; }
+    else { rear->next = n; rear = n; }
+    printf("%d enqueued\\n", val);
+}
+
+void dequeue() {
+    if (!front) { printf("Queue Empty\\n"); return; }
+    struct Node *t = front;
+    printf("%d dequeued\\n", t->data);
+    front = front->next;
+    if (!front) rear = NULL;
+    free(t);
+}
+
+void display() {
+    struct Node *cur = front;
+    printf("Queue: ");
+    while (cur) { printf("%d ", cur->data); cur = cur->next; }
+    printf("\\n");
+}
+
+int main() {
+    enqueue(10); enqueue(20); enqueue(30);
+    display();
+    dequeue();
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "singly_ll.c", title: "Write a program to implement Singly Linked List (add & delete node)", tag: "Linked List",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *next; };
+struct Node *head = NULL;
+
+void addNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->next = NULL;
+    if (!head) { head = n; return; }
+    struct Node *cur = head;
+    while (cur->next) cur = cur->next;
+    cur->next = n;
+}
+
+void deleteNode(int val) {
+    if (!head) { printf("List empty\\n"); return; }
+    if (head->data == val) {
+        struct Node *t = head; head = head->next; free(t); return;
+    }
+    struct Node *cur = head;
+    while (cur->next && cur->next->data != val) cur = cur->next;
+    if (!cur->next) { printf("Not found\\n"); return; }
+    struct Node *t = cur->next;
+    cur->next = t->next; free(t);
+}
+
+void display() {
+    struct Node *cur = head;
+    printf("List: ");
+    while (cur) { printf("%d -> ", cur->data); cur = cur->next; }
+    printf("NULL\\n");
+}
+
+int main() {
+    addNode(10); addNode(20); addNode(30);
+    display();
+    deleteNode(20);
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "doubly_ll.c", title: "Write a program to implement Doubly Linked List (add & delete node)", tag: "Linked List",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *prev, *next; };
+struct Node *head = NULL;
+
+void addNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->prev = NULL; n->next = NULL;
+    if (!head) { head = n; return; }
+    struct Node *cur = head;
+    while (cur->next) cur = cur->next;
+    cur->next = n; n->prev = cur;
+}
+
+void deleteNode(int val) {
+    struct Node *cur = head;
+    while (cur && cur->data != val) cur = cur->next;
+    if (!cur) { printf("Not found\\n"); return; }
+    if (cur->prev) cur->prev->next = cur->next;
+    else head = cur->next;
+    if (cur->next) cur->next->prev = cur->prev;
+    free(cur);
+}
+
+void display() {
+    struct Node *cur = head;
+    printf("Forward:  ");
+    while (cur) { printf("%d <-> ", cur->data); cur = cur->next; }
+    printf("NULL\\n");
+}
+
+int main() {
+    addNode(10); addNode(20); addNode(30);
+    display();
+    deleteNode(20);
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "circular_ll.c", title: "Write a program to implement Circular Linked List (add & delete node)", tag: "Linked List",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *next; };
+struct Node *head = NULL;
+
+void addNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val;
+    if (!head) { head = n; n->next = head; return; }
+    struct Node *cur = head;
+    while (cur->next != head) cur = cur->next;
+    cur->next = n; n->next = head;
+}
+
+void deleteNode(int val) {
+    if (!head) return;
+    struct Node *cur = head, *prev = NULL;
+    do {
+        if (cur->data == val) {
+            if (prev) prev->next = cur->next;
+            else {
+                struct Node *t = head;
+                while (t->next != head) t = t->next;
+                head = cur->next; t->next = head;
+            }
+            free(cur); return;
+        }
+        prev = cur; cur = cur->next;
+    } while (cur != head);
+    printf("Not found\\n");
+}
+
+void display() {
+    if (!head) return;
+    struct Node *cur = head;
+    printf("Circular: ");
+    do { printf("%d -> ", cur->data); cur = cur->next; } while (cur != head);
+    printf("(head)\\n");
+}
+
+int main() {
+    addNode(10); addNode(20); addNode(30);
+    display();
+    deleteNode(20);
+    display();
+    return 0;
+}`
+  },
+  {
+    file: "binary_tree.c", title: "Write a program to implement Binary Tree Traversals (Inorder, Preorder, Postorder)", tag: "Tree",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *left, *right; };
+
+struct Node* newNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->left = n->right = NULL;
+    return n;
+}
+
+void inorder  (struct Node *r) { if(r){ inorder(r->left);   printf("%d ",r->data); inorder(r->right);   } }
+void preorder (struct Node *r) { if(r){ printf("%d ",r->data); preorder(r->left);  preorder(r->right);  } }
+void postorder(struct Node *r) { if(r){ postorder(r->left); postorder(r->right); printf("%d ",r->data); } }
+
+int main() {
+    struct Node *root = newNode(1);
+    root->left  = newNode(2); root->right = newNode(3);
+    root->left->left  = newNode(4);
+    root->left->right = newNode(5);
+
+    printf("Inorder:   "); inorder(root);   printf("\\n");
+    printf("Preorder:  "); preorder(root);  printf("\\n");
+    printf("Postorder: "); postorder(root); printf("\\n");
+    return 0;
+}`
+  },
+  {
+    file: "bst.c", title: "Write a program to implement Binary Search Tree (insert & search)", tag: "Tree",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data; struct Node *left, *right; };
+
+struct Node* newNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->left = n->right = NULL; return n;
+}
+
+struct Node* insert(struct Node *root, int val) {
+    if (!root) return newNode(val);
+    if (val < root->data) root->left  = insert(root->left,  val);
+    else                  root->right = insert(root->right, val);
+    return root;
+}
+
+struct Node* search(struct Node *root, int val) {
+    if (!root || root->data == val) return root;
+    if (val < root->data) return search(root->left,  val);
+    return search(root->right, val);
+}
+
+void inorder(struct Node *r) {
+    if (r) { inorder(r->left); printf("%d ", r->data); inorder(r->right); }
+}
+
+int main() {
+    struct Node *root = NULL;
+    root = insert(root, 50); root = insert(root, 30);
+    root = insert(root, 70); root = insert(root, 20);
+    root = insert(root, 40);
+    printf("Inorder: "); inorder(root); printf("\\n");
+    printf("Search 40: %s\\n", search(root, 40) ? "Found" : "Not Found");
+    return 0;
+}`
+  },
+  {
+    file: "avl_tree.c", title: "Write a program to implement AVL Tree (self-balancing BST)", tag: "Tree",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+struct Node { int data, height; struct Node *left, *right; };
+
+int height(struct Node *n) { return n ? n->height : 0; }
+int max(int a, int b) { return a > b ? a : b; }
+
+struct Node* newNode(int val) {
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->data = val; n->height = 1; n->left = n->right = NULL; return n;
+}
+
+struct Node* rotateRight(struct Node *y) {
+    struct Node *x = y->left, *T = x->right;
+    x->right = y; y->left = T;
+    y->height = 1 + max(height(y->left), height(y->right));
+    x->height = 1 + max(height(x->left), height(x->right));
+    return x;
+}
+
+struct Node* rotateLeft(struct Node *x) {
+    struct Node *y = x->right, *T = y->left;
+    y->left = x; x->right = T;
+    x->height = 1 + max(height(x->left), height(x->right));
+    y->height = 1 + max(height(y->left), height(y->right));
+    return y;
+}
+
+int getBalance(struct Node *n) { return n ? height(n->left) - height(n->right) : 0; }
+
+struct Node* insert(struct Node *node, int val) {
+    if (!node) return newNode(val);
+    if      (val < node->data) node->left  = insert(node->left,  val);
+    else if (val > node->data) node->right = insert(node->right, val);
+    else return node;
+
+    node->height = 1 + max(height(node->left), height(node->right));
+    int bal = getBalance(node);
+
+    if (bal > 1 && val < node->left->data)  return rotateRight(node);
+    if (bal < -1 && val > node->right->data) return rotateLeft(node);
+    if (bal > 1 && val > node->left->data)
+        { node->left = rotateLeft(node->left); return rotateRight(node); }
+    if (bal < -1 && val < node->right->data)
+        { node->right = rotateRight(node->right); return rotateLeft(node); }
+    return node;
+}
+
+void inorder(struct Node *r) {
+    if (r) { inorder(r->left); printf("%d ", r->data); inorder(r->right); }
+}
+
+int main() {
+    struct Node *root = NULL;
+    int vals[] = {10, 20, 30, 40, 50, 25};
+    for (int i = 0; i < 6; i++) root = insert(root, vals[i]);
+    printf("AVL Inorder: "); inorder(root); printf("\\n");
+    return 0;
+}`
+  },
+  {
+    file: "hash_table.c", title: "Write a program to implement Hash Table", tag: "Hashing",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+#define SIZE 10
+
+struct Node { int key; struct Node *next; };
+struct Node *table[SIZE];
+
+int hash(int key) { return key % SIZE; }
+
+void insert(int key) {
+    int idx = hash(key);
+    struct Node *n = (struct Node*)malloc(sizeof(struct Node));
+    n->key = key; n->next = table[idx]; table[idx] = n;
+    printf("%d inserted at index %d\\n", key, idx);
+}
+
+void search(int key) {
+    struct Node *cur = table[hash(key)];
+    while (cur) { if (cur->key == key) { printf("%d found\\n", key); return; } cur = cur->next; }
+    printf("%d not found\\n", key);
+}
+
+void display() {
+    for (int i = 0; i < SIZE; i++) {
+        printf("[%2d]: ", i);
+        struct Node *cur = table[i];
+        while (cur) { printf("%d -> ", cur->key); cur = cur->next; }
+        printf("NULL\\n");
+    }
+}
+
+int main() {
+    for (int i = 0; i < SIZE; i++) table[i] = NULL;
+    insert(15); insert(25); insert(35); insert(7);
+    display();
+    search(25); search(99);
+    return 0;
+}`
+  },
+  {
+    file: "dijkstra.c", title: "Write a program to implement Dijkstra's Algorithm", tag: "Graph",
+    code: `#include <stdio.h>
+#include <limits.h>
+#define V 5
+
+int minDist(int dist[], int visited[]) {
+    int min = INT_MAX, idx = -1;
+    for (int i = 0; i < V; i++)
+        if (!visited[i] && dist[i] <= min) { min = dist[i]; idx = i; }
+    return idx;
+}
+
+void dijkstra(int graph[V][V], int src) {
+    int dist[V], visited[V] = {0};
+    for (int i = 0; i < V; i++) dist[i] = INT_MAX;
+    dist[src] = 0;
+
+    for (int c = 0; c < V - 1; c++) {
+        int u = minDist(dist, visited);
+        visited[u] = 1;
+        for (int v = 0; v < V; v++)
+            if (!visited[v] && graph[u][v] &&
+                dist[u] != INT_MAX &&
+                dist[u] + graph[u][v] < dist[v])
+                dist[v] = dist[u] + graph[u][v];
+    }
+
+    printf("Vertex\\tDistance from Source %d\\n", src);
+    for (int i = 0; i < V; i++)
+        printf("%d\\t%d\\n", i, dist[i]);
+}
+
+int main() {
+    int graph[V][V] = {
+        {0, 10, 0, 0, 5},
+        {10, 0, 1, 0, 2},
+        {0, 1, 0, 4, 0},
+        {0, 0, 4, 0, 0},
+        {5, 2, 0, 0, 0}
+    };
+    dijkstra(graph, 0);
+    return 0;
+}`
+  },
+  {
+    file: "dfs.c", title: "Write a program to implement Depth First Search (DFS)", tag: "Graph",
+    code: `#include <stdio.h>
+#define V 6
+
+int adj[V][V], visited[V];
+
+void addEdge(int u, int v) { adj[u][v] = adj[v][u] = 1; }
+
+void dfs(int v) {
+    visited[v] = 1;
+    printf("%d ", v);
+    for (int i = 0; i < V; i++)
+        if (adj[v][i] && !visited[i]) dfs(i);
+}
+
+int main() {
+    addEdge(0, 1); addEdge(0, 2);
+    addEdge(1, 3); addEdge(1, 4);
+    addEdge(2, 5);
+    printf("DFS from vertex 0: ");
+    dfs(0);
+    printf("\\n");
+    return 0;
+}`
+  },
+  {
+    file: "bfs.c", title: "Write a program to implement Breadth First Search (BFS)", tag: "Graph",
+    code: `#include <stdio.h>
+#define V 6
+
+int adj[V][V], visited[V];
+int queue[V * V], front = 0, rear = 0;
+
+void addEdge(int u, int v) { adj[u][v] = adj[v][u] = 1; }
+
+void bfs(int start) {
+    visited[start] = 1;
+    queue[rear++] = start;
+
+    while (front < rear) {
+        int v = queue[front++];
+        printf("%d ", v);
+        for (int i = 0; i < V; i++) {
+            if (adj[v][i] && !visited[i]) {
+                visited[i] = 1;
+                queue[rear++] = i;
+            }
+        }
+    }
+}
+
+int main() {
+    addEdge(0, 1); addEdge(0, 2);
+    addEdge(1, 3); addEdge(1, 4);
+    addEdge(2, 5);
+    printf("BFS from vertex 0: ");
+    bfs(0);
+    printf("\\n");
+    return 0;
+}`
+  }
+];
+
+const PLAYGROUND_DEFAULT = `#include <stdio.h>
+
+int main() {
+    printf("Hello, DSA CodeLab!\\n");
+    printf("Write any C program here and click RUN.\\n");
+    return 0;
+}`;
+
+// ── Judge0 API ────────────────────────────────────────────────────────────────
+const JUDGE0_URL = "https://judge0-ce.p.rapidapi.com";
+const JUDGE0_KEY = ""; // Leave blank — uses public CE endpoint below
+const PUBLIC_JUDGE0 = "https://ce.judge0.com";
+
+async function compileAndRun(code) {
+  // Use public Judge0 CE (no key needed)
+  const submitRes = await fetch(`${PUBLIC_JUDGE0}/submissions?base64_encoded=false&wait=true`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ source_code: code, language_id: 50, stdin: "" })
+  });
+  if (!submitRes.ok) throw new Error(`HTTP ${submitRes.status}: ${submitRes.statusText}`);
+  const data = await submitRes.json();
+  return data;
+}
+
+// ── Main IDE ─────────────────────────────────────────────────────────────────
+let currentMode = "playground"; // "playground" or index number
+
+function loadPlayground() {
+  currentMode = "playground";
+  const editor = document.getElementById("main-editor");
+  editor.value = PLAYGROUND_DEFAULT;
+  document.getElementById("tab-name").textContent = "playground.c";
+  document.getElementById("status-file").textContent = "playground.c";
+  updateLineNums();
+  updateStatusBar();
+  setSidebarActive(-1);
+  clearOutput();
+}
+
+function loadProgram(idx) {
+  currentMode = idx;
+  const prog = PROGRAMS[idx];
+  const editor = document.getElementById("main-editor");
+  editor.value = prog.code;
+  document.getElementById("tab-name").textContent = prog.file;
+  document.getElementById("status-file").textContent = prog.file;
+  updateLineNums();
+  updateStatusBar();
+  setSidebarActive(idx);
+  clearOutput();
+}
+
+function setSidebarActive(idx) {
+  const items = document.querySelectorAll(".sb-item");
+  items.forEach(el => el.classList.remove("active"));
+  if (idx === -1) {
+    document.getElementById("sb-playground").classList.add("active");
+  } else {
+    // +2 offset: playground item + divider item
+    const sbItems = document.querySelectorAll(".sidebar .sb-item");
+    if (sbItems[idx + 1]) sbItems[idx + 1].classList.add("active");
+  }
+}
+
+function updateLineNums() {
+  const editor = document.getElementById("main-editor");
+  const lines = editor.value.split("\n").length;
+  const container = document.getElementById("line-nums");
+  let html = "";
+  for (let i = 1; i <= lines; i++) html += `<span>${i}</span>`;
+  container.innerHTML = html;
+
+  // Sync scroll
+  editor.onscroll = () => { container.scrollTop = editor.scrollTop; };
+}
+
+function updateStatusBar() {
+  const editor = document.getElementById("main-editor");
+  const lines = editor.value.split("\n").length;
+  document.getElementById("status-lines").textContent = `Lines: ${lines}`;
+}
+
+function handleTab(e) {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const editor = document.getElementById("main-editor");
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = start + 4;
+    updateLineNums();
+  }
+}
+
+function clearOutput() {
+  const out = document.getElementById("main-output");
+  out.innerHTML = '<div class="out-line"><span class="out-prompt">$</span><span class="out-info">&nbsp;Output cleared. Press RUN to compile &amp; execute.</span></div>';
+  const dot = document.getElementById("main-out-dot");
+  dot.className = "out-dot";
+}
+
+function appendOutput(html) {
+  const out = document.getElementById("main-output");
+  out.innerHTML += html;
+  out.scrollTop = out.scrollHeight;
+}
+
+async function runMainCode() {
+  const code = document.getElementById("main-editor").value.trim();
+  if (!code) return;
+
+  const btn = document.getElementById("main-run-btn");
+  const icon = document.getElementById("run-icon");
+  const label = document.getElementById("run-label");
+  const dot = document.getElementById("main-out-dot");
+  const out = document.getElementById("main-output");
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="spinner"></span>';
+  label.textContent = "RUNNING";
+  document.getElementById("status-msg").textContent = "Compiling...";
+
+  out.innerHTML = `<div class="out-line"><span class="out-prompt">$</span><span class="out-warn">&nbsp;Compiling with GCC via Judge0...</span></div>`;
+  dot.className = "out-dot";
+
+  try {
+    const result = await compileAndRun(code);
+    out.innerHTML = "";
+
+    const filename = currentMode === "playground" ? "playground.c" : PROGRAMS[currentMode].file;
+    appendOutput(`<div class="out-line"><span class="out-prompt">$</span><span class="out-cmd">&nbsp;gcc ${filename} -o prog && ./prog</span></div>`);
+
+    if (result.compile_output) {
+      appendOutput(`<div class="out-line"><span class="out-prompt">!</span><span class="out-error">&nbsp;${escapeHtml(result.compile_output)}</span></div>`);
+      dot.className = "out-dot err";
+      document.getElementById("status-msg").textContent = "Compilation Error";
+    } else if (result.stdout) {
+      const lines = result.stdout.split("\n");
+      lines.forEach(line => {
+        if (line !== "") appendOutput(`<div class="out-line"><span class="out-prompt">&gt;</span><span class="out-text">&nbsp;${escapeHtml(line)}</span></div>`);
+      });
+      appendOutput(`<div class="out-line"><span class="out-prompt">$</span><span class="out-success">&nbsp;Process exited with code 0 ✓</span></div>`);
+      dot.className = "out-dot";
+      document.getElementById("status-msg").textContent = "Execution successful";
+    } else if (result.stderr) {
+      appendOutput(`<div class="out-line"><span class="out-prompt">!</span><span class="out-error">&nbsp;${escapeHtml(result.stderr)}</span></div>`);
+      dot.className = "out-dot err";
+      document.getElementById("status-msg").textContent = "Runtime Error";
+    } else {
+      appendOutput(`<div class="out-line"><span class="out-prompt">$</span><span class="out-info">&nbsp;(no output)</span></div>`);
+      document.getElementById("status-msg").textContent = "Done — no output";
+    }
+
+    if (result.time) {
+      appendOutput(`<div class="out-line"><span class="out-prompt"> </span><span class="out-info">&nbsp;Time: ${result.time}s &nbsp;|&nbsp; Memory: ${result.memory || '?'} KB</span></div>`);
+    }
+
+  } catch (err) {
+    out.innerHTML = `<div class="out-line"><span class="out-prompt">!</span><span class="out-error">&nbsp;Network error: ${escapeHtml(err.message)}</span></div>
+    <div class="out-line"><span class="out-prompt"> </span><span class="out-info">&nbsp;Make sure you are connected to the internet (Judge0 API is free &amp; public).</span></div>`;
+    dot.className = "out-dot err";
+    document.getElementById("status-msg").textContent = "Connection failed";
+  }
+
+  btn.disabled = false;
+  icon.innerHTML = "&#9654;";
+  label.textContent = "RUN";
+}
+
+// ── Blog section — build cards ─────────────────────────────────────────────
+function buildBlogCards() {
+  const container = document.getElementById("programs-container");
+  PROGRAMS.forEach((prog, idx) => {
+    const card = document.createElement("div");
+    card.className = "program-card";
+    card.id = `p${idx + 1}`;
+
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-num">${String(idx + 1).padStart(2, "0")}</span>
+        <div class="card-title">${prog.title}</div>
+        <span class="card-tag">${prog.tag}</span>
+      </div>
+      <div class="blog-code-wrap">
+        <div class="blog-toolbar">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="lang-tag">C</span>
+          <button class="blog-edit-btn" onclick="toggleBlogEdit(${idx})">✏ Edit</button>
+          <button class="blog-copy-btn" onclick="blogCopy(${idx})">Copy</button>
+          <button class="blog-run-btn" id="blog-run-${idx}" onclick="blogRun(${idx})">▶ Run</button>
+        </div>
+        <pre class="blog-pre" id="blog-pre-${idx}">${escapeHtml(prog.code)}</pre>
+        <textarea class="blog-textarea" id="blog-ta-${idx}" spellcheck="false" autocomplete="off"
+          onkeydown="handleBlogTab(event)" oninput="syncBlogCode(${idx})">${prog.code}</textarea>
+      </div>
+      <div class="blog-output" id="blog-out-wrap-${idx}">
+        <div class="blog-output-header">
+          <span class="blog-output-label">▶ Output — ${prog.file}</span>
+          <button class="blog-output-close" onclick="closeBlogOutput(${idx})">✕</button>
+        </div>
+        <div class="blog-output-body" id="blog-out-${idx}"></div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+let blogEditMode = new Array(16).fill(false);
+
+function toggleBlogEdit(idx) {
+  const pre = document.getElementById(`blog-pre-${idx}`);
+  const ta = document.getElementById(`blog-ta-${idx}`);
+  const btn = document.querySelector(`#p${idx+1} .blog-edit-btn`);
+
+  blogEditMode[idx] = !blogEditMode[idx];
+  if (blogEditMode[idx]) {
+    pre.style.display = "none";
+    ta.style.display = "block";
+    ta.style.minHeight = pre.offsetHeight + "px";
+    ta.focus();
+    btn.textContent = "✓ Done";
+    btn.style.color = "var(--accent)";
+    btn.style.borderColor = "var(--accent)";
+  } else {
+    pre.style.display = "block";
+    ta.style.display = "none";
+    pre.textContent = ta.value;
+    btn.textContent = "✏ Edit";
+    btn.style.color = "";
+    btn.style.borderColor = "";
+    PROGRAMS[idx].code = ta.value;
+  }
+}
+
+function syncBlogCode(idx) {
+  PROGRAMS[idx].code = document.getElementById(`blog-ta-${idx}`).value;
+}
+
+function handleBlogTab(e) {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart;
+    ta.value = ta.value.substring(0, start) + "    " + ta.value.substring(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = start + 4;
+  }
+}
+
+function blogCopy(idx) {
+  const ta = document.getElementById(`blog-ta-${idx}`);
+  const pre = document.getElementById(`blog-pre-${idx}`);
+  const text = blogEditMode[idx] ? ta.value : pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelectorAll(".blog-copy-btn")[idx];
+    btn.textContent = "Copied!";
+    btn.style.color = "var(--accent)";
+    setTimeout(() => { btn.textContent = "Copy"; btn.style.color = ""; }, 2000);
+  });
+}
+
+async function blogRun(idx) {
+  // If in edit mode, exit first to sync code
+  if (blogEditMode[idx]) toggleBlogEdit(idx);
+
+  const code = PROGRAMS[idx].code;
+  const outWrap = document.getElementById(`blog-out-wrap-${idx}`);
+  const outBody = document.getElementById(`blog-out-${idx}`);
+  const runBtn = document.getElementById(`blog-run-${idx}`);
+
+  outWrap.style.display = "block";
+  outBody.innerHTML = `<span class="out-warn">Compiling...</span>`;
+  runBtn.disabled = true;
+  runBtn.textContent = "⏳ Running";
+
+  try {
+    const result = await compileAndRun(code);
+    outBody.innerHTML = "";
+
+    if (result.compile_output) {
+      outBody.innerHTML = `<span class="out-error">${escapeHtml(result.compile_output)}</span>`;
+    } else if (result.stdout) {
+      outBody.innerHTML = `<span class="out-text">${escapeHtml(result.stdout)}</span>`;
+      if (result.time) outBody.innerHTML += `<br><span class="out-info">Time: ${result.time}s</span>`;
+    } else if (result.stderr) {
+      outBody.innerHTML = `<span class="out-error">${escapeHtml(result.stderr)}</span>`;
+    } else {
+      outBody.innerHTML = `<span class="out-info">(no output)</span>`;
+    }
+  } catch (err) {
+    outBody.innerHTML = `<span class="out-error">Network error: ${escapeHtml(err.message)}</span>`;
+  }
+
+  runBtn.disabled = false;
+  runBtn.textContent = "▶ Run";
+  outWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function closeBlogOutput(idx) {
+  document.getElementById(`blog-out-wrap-${idx}`).style.display = "none";
+}
+
+// ── Also load into main IDE from blog card ───────────────────────────────────
+// Clicking sidebar loads to IDE; blog cards run inline
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  buildBlogCards();
+  loadPlayground();
+  updateLineNums();
+});
+</script>
+</body>
+</html>
